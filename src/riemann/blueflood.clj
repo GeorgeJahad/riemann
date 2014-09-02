@@ -1,8 +1,11 @@
-(require '[cheshire.core :as json]
-         '[clojure.string :as s])
-(use 'aleph.http)
+(ns riemann.blueflood
+  "Forwards events to Blueflood"
+  (:require [clj-http.client :as client]
+            [cheshire.core :as json]
+            [clojure.string :as s]
+            [clojure.tools.logging :as logging]))
 
-
+(def version "0.1")
 (defn prep-event-for-bf [ev]
   {:collectionTime (:time ev)
    :ttlInSeconds (if-let [rttl (:ttl ev)]
@@ -17,14 +20,14 @@
 
 (defn log-bf-body [evs]
   (let [r (bf-body evs)]
-    (info "bf-body" r)
+    (logging/info "bf-body" r)
     r))
 
 
 
 (defn bf-ingest [evs]
   ; TODO: future performance enhancements: switch to async client, use keep http connection open
-  (sync-http-request
+  (logging/info version
     {:method :post
      :url "http://192.168.5.3:19000/v1.0/tenant-id/experimental/metrics"
      :content-type :json
@@ -32,4 +35,4 @@
 
 
 (defn log-bf-ingest [evs]
-  (info "ingest_output" (bf-ingest evs)))
+  (logging/info "ingest_output" (bf-ingest evs)))
