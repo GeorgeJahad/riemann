@@ -39,14 +39,11 @@
   ; TODO: future performance enhancements: switch to async client, use keep http connection open
   (let [url (format url-template host port tenant-id)]
     (fn [evs]
-#_      (client/post url
+      (client/post url
                {:body (bf-body evs)
-                :socket-timeout 5000
-                :conn-timeout 5000
                 :content-type :json
-                :accept :json
                 :throw-entire-message? true})
-      (logging/info version
+#_      (logging/info version
                     {:method :post
                      :url url
                      :content-type :json
