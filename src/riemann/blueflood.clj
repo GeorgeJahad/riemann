@@ -3,7 +3,8 @@
   (:require [clj-http.client :as client]
             [cheshire.core :as json]
             [clojure.string :as s]
-            [clojure.tools.logging :as logging]))
+            [clojure.tools.logging :as logging]
+            [riemann.streams :as streams]))
 
 (def version "0.1")
 (def url-template "http://%s:%s/v2.0/%s/ingest")
@@ -11,7 +12,9 @@
   {:ttl 2592000
    :host "localhost"
    :port "19000"
-   :tenant-id "tenant-id"})
+   :tenant-id "tenant-id"
+   :n 100
+   :dt 1})
 
 (defn prep-event-for-bf [ev]
   {:collectionTime (:time ev)
@@ -29,26 +32,30 @@
     (logging/info "bf-body" r)
     r))
 
+(defn blueflood-ingest-synchronous [url & children]
+  (fn [evs]
+    (client/post url
+                 {:body (bf-body evs)
+                  :content-type :json
+                  :socket-timeout 5000
+                  :conn-timeout 5000
+                  :throw-entire-message? true})
+    (streams/call-rescue evs children)))
 
-
-(defn blueflood-ingest [{:keys [host port tenant-id]
-                         :as opts
-                         :or {host (defaults :host)
-                              port (defaults :port)
-                              tenant-id (defaults :tenant-id)}}]
-  ; TODO: future performance enhancements: switch to async client, use keep http connection open
-  (let [url (format url-template host port tenant-id)]
-    (fn [evs]
-      (client/post url
-               {:body (bf-body evs)
-                :content-type :json
-                :throw-entire-message? true})
-#_      (logging/info version
-                    {:method :post
-                     :url url
-                     :content-type :json
-                     :body (bf-body evs)}))))
+(defn blueflood-ingest [opts & children]
+  (let [opts (merge defaults opts)
+        {:keys [n dt host port tenant-id]} opts
+        url (format url-template host port tenant-id)
+        bf-stream (apply blueflood-ingest-synchronous url children)]
+    (streams/where 
+     ;; BF doesn't handle events with null metrics so drop them
+     metric
+     (streams/batch 
+      n dt 
+      (if (:async-queue-name opts)
+        (riemann.config/async-queue! (:async-queue-name opts)  (:threadpool-service-opts opts) bf-stream)
+        bf-stream)))))
 
 
 #_(defn log-bf-ingest [evs]
-  (logging/info "ingest_output" (bf-ingest evs)))
+    (logging/info "ingest_output" (bf-ingest evs)))
