@@ -62,7 +62,15 @@
   Parameters to riemann.config/async-queue! (they pass through unchanged.)
   :async-queue-name Name of queue; if nil, stream is synchronous
   		    	    	   (i.e. async-queue! stream not used.)
-  :threadpool-service-opts Options to riemann.service/threadpool-service"
+  :threadpool-service-opts Options to riemann.service/threadpool-service
+  Use:
+     (blueflood-ingest {:host \"blueflood-server\" 
+                        :tenant-id \"tenant\"
+                        :async-queue-name :bf-queue})
+
+  or for synchronous, just:
+     (blueflood-ingest {:host \"blueflood-server\" 
+                        :tenant-id \"tenant\"})"
   (let [opts (merge defaults opts)
         {:keys [n dt host port tenant-id
                 async-queue-name threadpool-service-opts]} opts
