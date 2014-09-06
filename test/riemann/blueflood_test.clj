@@ -19,24 +19,35 @@
 (use-fixtures :once control-time!)
 (use-fixtures :each reset-time!)
 
+; These tests assume you've got blueflood running on the localhost
 (def query-url-template "http://localhost:20000/v2.0/tenant-id/views/%s.%s?from=000000000&to=1500000000&resolution=FULL")
 
-(deftest blueflood-ingest-test
+(defn test-helper [opts]
   (let [service (str (java.util.UUID/randomUUID))
         host "a"
         query-url (format query-url-template host service) 
+        timestamp 3
+        value 3
         input
         [{:host host
           :service service
-          :metric 2
-          :time 2}
-         {:host host
-          :service service
-          :metric 1
-          :time 100}]
-        stream (blueflood-ingest {:async-queue-name :testq} prn)]
+          :metric value
+          :time timestamp}
+         ;; This second event doesn't get included in the batch but the timestamp causes the
+         ;;  the batch to complete and be sent to blueflood with just the first event.
+         {:time (+ timestamp 60)}]
+        stream (blueflood-ingest opts prn)]
+    ;; creates the async executor
     (apply!)
     (run-stream (sdo stream) input)
     (Thread/sleep 300)
-    (is (= [{"numPoints" 1, "timestamp" 2, "average" 2}]
+    (is (= [{"numPoints" 1, "timestamp" timestamp, "average" value}]
            ((json/parse-string (:body (client/get query-url))) "values")))))
+
+(deftest blueflood-ingest-test
+  ;; test synchronously
+  (test-helper {})
+  ;; test asynchronously
+  (test-helper {:async-queue-name :testq}))
+
+
