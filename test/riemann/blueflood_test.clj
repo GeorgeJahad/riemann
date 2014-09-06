@@ -35,7 +35,7 @@
           :time timestamp}
          ;; This second event doesn't get included in the batch but the timestamp causes the
          ;;  the batch to complete and be sent to blueflood with just the first event.
-         {:time (+ timestamp 60)}]
+         {:time (inc timestamp)}]
         stream (blueflood-ingest opts prn)]
     ;; creates the async executor
     (apply!)

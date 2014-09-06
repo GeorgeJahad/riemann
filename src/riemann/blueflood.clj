@@ -6,7 +6,7 @@
             [clojure.tools.logging :as logging]
             [riemann.streams :as streams]))
 
-(def version "0.1")
+(def version "1.0")
 (def url-template "http://%s:%s/v2.0/%s/ingest")
 (def defaults
   {:ttl 2592000
@@ -16,13 +16,13 @@
    :n 100
    :dt 1})
 
-(defn prep-event-for-bf [ev]
+(defn- prep-event-for-bf [ev]
   {:collectionTime (:time ev)
    :ttlInSeconds (or (:ttl ev) (defaults :ttl))
    :metricValue (:metric ev)
    :metricName (s/join "." [(:host ev) (:service ev)])})
 
-(defn bf-body [evs]
+(defn- bf-body [evs]
   (->> evs
        (map prep-event-for-bf)
        json/generate-string))
@@ -37,6 +37,7 @@
     (client/post url
                  {:body (bf-body evs)
                   :content-type :json
+                  :accept :json
                   :socket-timeout 5000
                   :conn-timeout 5000
                   :throw-entire-message? true})
@@ -44,7 +45,8 @@
 
 (defn blueflood-ingest [opts & children]
   (let [opts (merge defaults opts)
-        {:keys [n dt host port tenant-id]} opts
+        {:keys [n dt host port tenant-id
+                async-queue-name threadpool-service-opts]} opts
         url (format url-template host port tenant-id)
         bf-stream (apply blueflood-ingest-synchronous url children)]
     (streams/where 
@@ -52,10 +54,6 @@
      metric
      (streams/batch 
       n dt 
-      (if (:async-queue-name opts)
-        (riemann.config/async-queue! (:async-queue-name opts)  (:threadpool-service-opts opts) bf-stream)
+      (if async-queue-name
+        (riemann.config/async-queue! async-queue-name threadpool-service-opts bf-stream)
         bf-stream)))))
-
-
-#_(defn log-bf-ingest [evs]
-    (logging/info "ingest_output" (bf-ingest evs)))

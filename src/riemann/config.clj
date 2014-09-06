@@ -40,6 +40,8 @@
         [riemann.stackdriver :only [stackdriver]]
         [cemerick.pomegranate :only [add-dependencies]]
         [riemann.shinken :only [shinken]]
+        [riemann.blueflood :only [blueflood-ingest]]
+
         riemann.streams))
 
 (def core "The currently running core."
