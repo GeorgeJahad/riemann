@@ -4,7 +4,8 @@
             [cheshire.core :as json]
             [clojure.string :as s]
             [clojure.tools.logging :as logging]
-            [riemann.streams :as streams]))
+            [riemann.streams :as streams]
+            [riemann.config :as config]))
 
 (def version "1.0")
 (def url-template "http://%s:%s/v2.0/%s/ingest")
@@ -34,16 +35,34 @@
 
 (defn blueflood-ingest-synchronous [url & children]
   (fn [evs]
-    (client/post url
-                 {:body (bf-body evs)
-                  :content-type :json
-                  :accept :json
-                  :socket-timeout 5000
-                  :conn-timeout 5000
-                  :throw-entire-message? true})
+    (client/post
+     url
+     {:body (bf-body evs)
+      :content-type :json
+      :accept :json
+      :socket-timeout 5000
+      :conn-timeout 5000
+      :throw-entire-message? true})
     (streams/call-rescue evs children)))
 
 (defn blueflood-ingest [opts & children]
+  "A stream which creates a batch, optionally asynchronous, of events to 
+  forward to BF
+
+  Options:
+  Parameters to Blueflood server
+  :host BF hostname
+  :port BF port
+  :tenant-id BF tenant for this batch of metrics
+
+  Parameters to riemann.streams/batch, (they pass through unchanged.)
+  :n Max number of events in a batch
+  :dt Max seconds in a batch
+
+  Parameters to riemann.config/async-queue! (they pass through unchanged.)
+  :async-queue-name Name of queue; if nil, stream is synchronous
+  		    	    	   (i.e. async-queue! stream not used.)
+  :threadpool-service-opts Options to riemann.service/threadpool-service"
   (let [opts (merge defaults opts)
         {:keys [n dt host port tenant-id
                 async-queue-name threadpool-service-opts]} opts
@@ -55,5 +74,6 @@
      (streams/batch 
       n dt 
       (if async-queue-name
-        (riemann.config/async-queue! async-queue-name threadpool-service-opts bf-stream)
+        (config/async-queue! async-queue-name
+                             threadpool-service-opts bf-stream)
         bf-stream)))))

@@ -1,15 +1,12 @@
 (ns riemann.blueflood-test
   (:use riemann.blueflood
         riemann.streams
-        [riemann.common :exclude [match]]
         riemann.time.controlled
         riemann.time
-        [riemann.test :refer [run-stream run-stream-intervals test-stream 
-                              with-test-stream test-stream-intervals]]
+        [riemann.test :refer [run-stream]]
         [riemann.config :refer [apply!]]
         clojure.test)
-  (:require [riemann.index :as index]
-            [riemann.folds :as folds]
+  (:require 
             [riemann.logging :as logging]
             [cheshire.core :as json]
             [clj-http.client :as client]))
@@ -20,7 +17,8 @@
 (use-fixtures :each reset-time!)
 
 ; These tests assume you've got blueflood running on the localhost
-(def query-url-template "http://localhost:20000/v2.0/tenant-id/views/%s.%s?from=000000000&to=1500000000&resolution=FULL")
+(def query-url-template
+  "http://localhost:20000/v2.0/tenant-id/views/%s.%s?from=000000000&to=1500000000&resolution=FULL")
 
 (defn test-helper [opts]
   (let [service (str (java.util.UUID/randomUUID))
@@ -39,10 +37,12 @@
         stream (blueflood-ingest opts prn)]
     ;; creates the async executor
     (apply!)
+    ;; Feed the input into BF
     (run-stream (sdo stream) input)
     (Thread/sleep 300)
-    (is (= [{"numPoints" 1, "timestamp" timestamp, "average" value}]
-           ((json/parse-string (:body (client/get query-url))) "values")))))
+    ;; Read it back from BF
+    (is (= ((json/parse-string (:body (client/get query-url))) "values")
+           [{"numPoints" 1, "timestamp" timestamp, "average" value}]))))
 
 (deftest blueflood-ingest-test
   ;; test synchronously
